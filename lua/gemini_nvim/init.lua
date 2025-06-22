@@ -250,11 +250,18 @@ function M.init()
         desc = "Display the current Gemini prompt (buffer-local or default)"
     })
 
-    -- Keymap: <leader>gip (Gemini Improve)
-    vim.keymap.set('n', '<leader>i', ':GeminiImprove<CR>', {
+    -- Keymap: <leader>gi (Gemini Improve)
+    vim.keymap.set('n', '<leader>gi', ':GeminiImprove<CR>', {
         noremap = true,
         silent = true,
         desc = "Improve text with Gemini"
+    })
+
+    -- Keymap: <leader>gd (Gemini Display Prompt)
+    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt<CR>', {
+        noremap = true,
+        silent = true,
+        desc = "Show current prompt"
     })
 end
 
