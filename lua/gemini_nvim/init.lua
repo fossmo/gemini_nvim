@@ -236,6 +236,20 @@ function M.init()
         desc = "Set a buffer-local prompt for Gemini API text improvement"
     })
 
+    -- User Command: :GeminiDisplayPrompt
+    vim.api.nvim_create_user_command('GeminiDisplayPrompt', function()
+        local current_prompt
+        if vim.b.gemini_prompt then
+            current_prompt = vim.b.gemini_prompt
+            vim.notify("Current buffer-local Gemini prompt:\n" .. current_prompt, vim.log.levels.INFO)
+        else
+            current_prompt = M.config.default_prompt
+            vim.notify("Current default Gemini prompt:\n" .. current_prompt, vim.log.levels.INFO)
+        end
+    end, {
+        desc = "Display the current Gemini prompt (buffer-local or default)"
+    })
+
     -- Keymap: <leader>gip (Gemini Improve)
     vim.keymap.set('n', '<leader>i', ':GeminiImprove<CR>', {
         noremap = true,
