@@ -1,6 +1,6 @@
-local M = {}
+local plugin = {}
 
-M.config = {
+plugin.config = {
     api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
 
     -- Default prompt for improving text
@@ -29,12 +29,12 @@ local function get_buffer_content()
         return nil 
     end
 
-    if #content > M.config.max_input_length then
+    if #content > plugin.config.max_input_length then
         vim.notify(
-            string.format("Warning: Text too long (%d chars). Truncating to %d characters.", #content, M.config.max_input_length),
+            string.format("Warning: Text too long (%d chars). Truncating to %d characters.", #content, plugin.config.max_input_length),
             vim.log.levels.WARN
         )
-        content = string.sub(content, 1, M.config.max_input_length)
+        content = string.sub(content, 1, plugin.config.max_input_length)
     end
     return content
 end
@@ -65,7 +65,7 @@ local function call_gemini_api()
 
     vim.notify("Sending text to Gemini API... Please wait.", vim.log.levels.INFO)
 
-    local prompt_instruction = M.config.default_prompt
+    local prompt_instruction = plugin.config.default_prompt
     -- Check for a buffer-local variable for custom prompt
     if vim.b.gemini_prompt then
         prompt_instruction = vim.b.gemini_prompt
@@ -80,7 +80,7 @@ local function call_gemini_api()
         "-X", "POST",
         "-H", "Content-Type: application/json",
         "--data-binary", "@-", -- Tell curl to read the body from stdin
-        M.config.api_url .. "?key=" .. api_key
+        plugin.config.api_url .. "?key=" .. api_key
     }
 
     local stdout_data = {}
@@ -195,12 +195,12 @@ local function call_gemini_api()
 end
 
 -- Expose configuration function
-function M.setup(opts)
-    M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+function plugin.setup(opts)
+    plugin.config = vim.tbl_deep_extend("force", plugin.config, opts or {})
 end
 
 -- Define Neovim Commands and Keymaps
-function M.init()
+function plugin.init()
     -- User Command: :GeminiImprove
     vim.api.nvim_create_user_command('GeminiImprove', function()
         call_gemini_api()
@@ -212,7 +212,7 @@ function M.init()
     vim.api.nvim_create_user_command('GeminiSetPrompt', function(args)
         local new_prompt = table.concat(args.fargs, ' ')
         if new_prompt ~= '' then
-            M.config.default_prompt = new_prompt
+            plugin.config.default_prompt = new_prompt
             vim.notify("Default Gemini prompt set to: " .. new_prompt, vim.log.levels.INFO)
         else
             vim.notify("Usage: :GeminiSetPrompt <your new prompt>", vim.log.levels.WARN)
@@ -243,7 +243,7 @@ function M.init()
             current_prompt = vim.b.gemini_prompt
             vim.notify("Current buffer-local Gemini prompt:\n" .. current_prompt, vim.log.levels.INFO)
         else
-            current_prompt = M.config.default_prompt
+            current_prompt = plugin.config.default_prompt
             vim.notify("Current default Gemini prompt:\n" .. current_prompt, vim.log.levels.INFO)
         end
     end, {
@@ -266,6 +266,6 @@ function M.init()
 end
 
 -- Initialize the plugin on load
-M.init()
+plugin.init()
 
-return M
+return plugin
