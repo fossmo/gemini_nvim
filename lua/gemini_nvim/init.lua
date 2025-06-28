@@ -1,3 +1,5 @@
+---@diagnostic disable: undefined-global
+
 local plugin = {}
 
 plugin.config = {
