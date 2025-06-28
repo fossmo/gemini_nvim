@@ -289,7 +289,6 @@ function plugin.init()
     vim.api.nvim_create_user_command('GeminiImproveSelection', function()
         improve_selection()
     end, {
-        range = '',
         desc = "Improve selected text using Google Gemini API"
     })
 
@@ -342,15 +341,15 @@ function plugin.init()
         desc = "Improve text with Gemini"
     })
 
-    -- Keymap: <leader>gi (Gemini Improve Selection)
-    vim.keymap.set('v', '<leader>gs', ':GeminiImproveSelection', {
+    -- Keymap: <leader>gs (Gemini Improve Selection)
+    vim.keymap.set('v', '<leader>gs', ':<C-U>GeminiImproveSelection<CR>', {
         noremap = true,
         silent = true,
         desc = "Improve selected text with Gemini"
     })
 
     -- Keymap: <leader>gd (Gemini Display Prompt)
-    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt', {
+    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt<CR>', {
         noremap = true,
         silent = true,
         desc = "Show current prompt"
