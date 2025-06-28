@@ -343,14 +343,14 @@ function plugin.init()
     })
 
     -- Keymap: <leader>gi (Gemini Improve Selection)
-    vim.keymap.set('v', '<leader>gi', ':GeminiImproveSelection<CR>', {
+    vim.keymap.set('v', '<leader>gs', ':GeminiImproveSelection', {
         noremap = true,
         silent = true,
         desc = "Improve selected text with Gemini"
     })
 
     -- Keymap: <leader>gd (Gemini Display Prompt)
-    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt<CR>', {
+    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt', {
         noremap = true,
         silent = true,
         desc = "Show current prompt"
