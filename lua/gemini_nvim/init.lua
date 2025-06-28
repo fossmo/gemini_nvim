@@ -26,8 +26,10 @@ end
 -- Function to get the current buffer content
 local function get_buffer_content()
     local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    local content = table.concat(lines, ' ')
+    local content = table.concat(lines, '
+')
     if #content == 0 then
+
         return nil
     end
 
@@ -43,8 +45,8 @@ end
 
 -- Function to get the visually selected text and its range
 local function get_visual_selection()
-    local start_mark = vim.api.nvim_buf_get_mark(0, "'<'")
-    local end_mark = vim.api.nvim_buf_get_mark(0, "'>'")
+    local start_mark = vim.api.nvim_buf_get_mark(0, "<")
+    local end_mark = vim.api.nvim_buf_get_mark(0, ">")
 
     -- If mark is not set, line is 0
     if start_mark[1] == 0 then
@@ -60,7 +62,7 @@ local function get_visual_selection()
     -- get_mark returns 1-based line and 0-based col.
     -- The end column for get_text is exclusive, but the mark is inclusive.
     local text_lines = vim.api.nvim_buf_get_text(0, start_line - 1, start_col, end_line - 1, end_col + 1, {})
-    local selection = table.concat(text_lines, " ")
+    local selection = table.concat(text_lines, "\n")
 
     if #selection == 0 then
         return nil
@@ -241,7 +243,7 @@ local function improve_buffer()
         vim.api.nvim_buf_set_option(0, 'buftype', 'nofile') -- Don't associate with a file
         vim.api.nvim_buf_set_option(0, 'swapfile', false)
         vim.api.nvim_buf_set_option(0, 'modifiable', true) -- Make sure it's modifiable for writing
-        vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(improved_text, ' '))
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(improved_text, '\n'))
         vim.api.nvim_buf_set_option(0, 'modifiable', false) -- Make it read-only
         vim.api.nvim_buf_set_option(0, 'readonly', true)
         vim.api.nvim_buf_set_option(0, 'filetype', 'markdown') -- Suggest a filetype for highlighting
@@ -259,7 +261,8 @@ local function improve_selection()
     end
 
     call_gemini(selection_info.text, function(improved_text)
-        local new_text_lines = vim.split(improved_text, ' ')
+        local new_text_lines = vim.split(improved_text, '
+')
         vim.api.nvim_buf_set_text(0,
             selection_info.start_line,
             selection_info.start_col,
