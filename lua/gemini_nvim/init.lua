@@ -1,3 +1,5 @@
+---@diagnostic disable: undefined-global
+
 local plugin = {}
 
 plugin.config = {
@@ -24,9 +26,9 @@ end
 -- Function to get the current buffer content
 local function get_buffer_content()
     local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    local content = table.concat(lines, '\n')
+    local content = table.concat(lines, ' ')
     if #content == 0 then
-        return nil 
+        return nil
     end
 
     if #content > plugin.config.max_input_length then
@@ -39,28 +41,69 @@ local function get_buffer_content()
     return content
 end
 
+-- Function to get the visually selected text and its range
+local function get_visual_selection()
+    local start_mark = vim.api.nvim_buf_get_mark(0, "'<'")
+    local end_mark = vim.api.nvim_buf_get_mark(0, "'>'")
+
+    -- If mark is not set, line is 0
+    if start_mark[1] == 0 then
+        return nil
+    end
+
+    local start_line = start_mark[1]
+    local end_line = end_mark[1]
+    local start_col = start_mark[2]
+    local end_col = end_mark[2]
+
+    -- nvim_buf_get_text is 0-indexed for lines and columns.
+    -- get_mark returns 1-based line and 0-based col.
+    -- The end column for get_text is exclusive, but the mark is inclusive.
+    local text_lines = vim.api.nvim_buf_get_text(0, start_line - 1, start_col, end_line - 1, end_col + 1, {})
+    local selection = table.concat(text_lines, " ")
+
+    if #selection == 0 then
+        return nil
+    end
+
+    return {
+        text = selection,
+        start_line = start_line - 1,
+        start_col = start_col,
+        end_line = end_line - 1,
+        end_col = end_col + 1
+    }
+end
+
 -- Function to construct the Gemini API request payload
 local function construct_payload(text_to_improve, prompt_instruction)
     return {
         contents = {
             {
                 parts = {
-                    { text = prompt_instruction .. "\n\n" .. text_to_improve }
+                    { text = prompt_instruction .. " " .. text_to_improve }
                 }
             }
         }
     }
 end
 
--- Main function to call Gemini API
-local function call_gemini_api()
+-- Generic function to call Gemini API
+local function call_gemini(text_to_improve, on_success_callback)
     local api_key = get_api_key()
     if not api_key then return end
 
-    local original_content = get_buffer_content()
-    if not original_content or #original_content == 0 then
-        vim.notify("Current buffer is empty or contains no text. Nothing to improve.", vim.log.levels.INFO)
+    if not text_to_improve or #text_to_improve == 0 then
+        vim.notify("No text to improve.", vim.log.levels.INFO)
         return
+    end
+
+    if #text_to_improve > plugin.config.max_input_length then
+        vim.notify(
+            string.format("Warning: Text too long (%d chars). Truncating to %d characters.", #text_to_improve, plugin.config.max_input_length),
+            vim.log.levels.WARN
+        )
+        text_to_improve = string.sub(text_to_improve, 1, plugin.config.max_input_length)
     end
 
     vim.notify("Sending text to Gemini API... Please wait.", vim.log.levels.INFO)
@@ -71,7 +114,7 @@ local function call_gemini_api()
         prompt_instruction = vim.b.gemini_prompt
     end
 
-    local payload = construct_payload(original_content, prompt_instruction)
+    local payload = construct_payload(text_to_improve, prompt_instruction)
     local json_payload = vim.fn.json_encode(payload)
 
     local cmd = {
@@ -108,7 +151,7 @@ local function call_gemini_api()
 
         vim.schedule(function()
             if exit_code ~= 0 then
-                local error_msg = "Gemini API call failed with exit code " .. exit_code .. ".\n"
+                local error_msg = "Gemini API call failed with exit code " .. exit_code .. ". "
                 if stderr_str ~= "" then
                     error_msg = error_msg .. "Stderr: " .. stderr_str
                 end
@@ -144,18 +187,7 @@ local function call_gemini_api()
                 return
             end
 
-            -- Open new tab and write the result
-            vim.cmd('tabnew')
-            vim.api.nvim_buf_set_option(0, 'bufhidden', 'wipe') -- Allow closing without save prompt
-            vim.api.nvim_buf_set_option(0, 'buftype', 'nofile') -- Don't associate with a file
-            vim.api.nvim_buf_set_option(0, 'swapfile', false)
-            vim.api.nvim_buf_set_option(0, 'modifiable', true) -- Make sure it's modifiable for writing
-            vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(improved_text, '\n'))
-            vim.api.nvim_buf_set_option(0, 'modifiable', false) -- Make it read-only
-            vim.api.nvim_buf_set_option(0, 'readonly', true)
-            vim.api.nvim_buf_set_option(0, 'filetype', 'markdown') -- Suggest a filetype for highlighting
-
-            vim.notify("Text improved and opened in a new tab!", vim.log.levels.INFO)
+            on_success_callback(improved_text)
         end) -- End of vim.schedule function
     end) -- End of vim.loop.spawn callback
 
@@ -194,6 +226,51 @@ local function call_gemini_api()
     end)
 end
 
+-- Function to improve the whole buffer
+local function improve_buffer()
+    local original_content = get_buffer_content()
+    if not original_content then
+        vim.notify("Current buffer is empty or contains no text. Nothing to improve.", vim.log.levels.INFO)
+        return
+    end
+
+    call_gemini(original_content, function(improved_text)
+        -- Open new tab and write the result
+        vim.cmd('tabnew')
+        vim.api.nvim_buf_set_option(0, 'bufhidden', 'wipe') -- Allow closing without save prompt
+        vim.api.nvim_buf_set_option(0, 'buftype', 'nofile') -- Don't associate with a file
+        vim.api.nvim_buf_set_option(0, 'swapfile', false)
+        vim.api.nvim_buf_set_option(0, 'modifiable', true) -- Make sure it's modifiable for writing
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(improved_text, ' '))
+        vim.api.nvim_buf_set_option(0, 'modifiable', false) -- Make it read-only
+        vim.api.nvim_buf_set_option(0, 'readonly', true)
+        vim.api.nvim_buf_set_option(0, 'filetype', 'markdown') -- Suggest a filetype for highlighting
+
+        vim.notify("Text improved and opened in a new tab!", vim.log.levels.INFO)
+    end)
+end
+
+-- Function to improve the current selection
+local function improve_selection()
+    local selection_info = get_visual_selection()
+    if not selection_info or #selection_info.text == 0 then
+        vim.notify("No text selected or selection is empty.", vim.log.levels.INFO)
+        return
+    end
+
+    call_gemini(selection_info.text, function(improved_text)
+        local new_text_lines = vim.split(improved_text, ' ')
+        vim.api.nvim_buf_set_text(0,
+            selection_info.start_line,
+            selection_info.start_col,
+            selection_info.end_line,
+            selection_info.end_col,
+            new_text_lines)
+        vim.notify("Selected text improved!", vim.log.levels.INFO)
+    end)
+end
+
+
 -- Expose configuration function
 function plugin.setup(opts)
     plugin.config = vim.tbl_deep_extend("force", plugin.config, opts or {})
@@ -203,9 +280,17 @@ end
 function plugin.init()
     -- User Command: :GeminiImprove
     vim.api.nvim_create_user_command('GeminiImprove', function()
-        call_gemini_api()
+        improve_buffer()
     end, {
         desc = "Improve current buffer text using Google Gemini API"
+    })
+
+    -- User Command: :GeminiImproveSelection
+    vim.api.nvim_create_user_command('GeminiImproveSelection', function()
+        improve_selection()
+    end, {
+        range = '',
+        desc = "Improve selected text using Google Gemini API"
     })
 
     -- User Command: :GeminiSetPrompt
@@ -241,10 +326,10 @@ function plugin.init()
         local current_prompt
         if vim.b.gemini_prompt then
             current_prompt = vim.b.gemini_prompt
-            vim.notify("Current buffer-local Gemini prompt:\n" .. current_prompt, vim.log.levels.INFO)
+            vim.notify("Current buffer-local Gemini prompt: " .. current_prompt, vim.log.levels.INFO)
         else
             current_prompt = plugin.config.default_prompt
-            vim.notify("Current default Gemini prompt:\n" .. current_prompt, vim.log.levels.INFO)
+            vim.notify("Current default Gemini prompt: " .. current_prompt, vim.log.levels.INFO)
         end
     end, {
         desc = "Display the current Gemini prompt (buffer-local or default)"
@@ -257,8 +342,15 @@ function plugin.init()
         desc = "Improve text with Gemini"
     })
 
+    -- Keymap: <leader>gi (Gemini Improve Selection)
+    vim.keymap.set('v', '<leader>gs', ':GeminiImproveSelection', {
+        noremap = true,
+        silent = true,
+        desc = "Improve selected text with Gemini"
+    })
+
     -- Keymap: <leader>gd (Gemini Display Prompt)
-    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt<CR>', {
+    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt', {
         noremap = true,
         silent = true,
         desc = "Show current prompt"
