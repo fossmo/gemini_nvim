@@ -26,12 +26,12 @@ end
 -- Function to get the current buffer content
 local function get_buffer_content()
     local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    local content = table.concat(lines, '
-')
+    local content = table.concat(lines, "\n")
     if #content == 0 then
 
         return nil
     end
+
 
     if #content > plugin.config.max_input_length then
         vim.notify(
@@ -48,7 +48,6 @@ local function get_visual_selection()
     local start_mark = vim.api.nvim_buf_get_mark(0, "<")
     local end_mark = vim.api.nvim_buf_get_mark(0, ">")
 
-    -- If mark is not set, line is 0
     if start_mark[1] == 0 then
         return nil
     end
@@ -56,16 +55,22 @@ local function get_visual_selection()
     local start_line = start_mark[1]
     local end_line = end_mark[1]
     local start_col = start_mark[2]
-    local end_col = end_mark[2]
+    local end_col_from_mark = end_mark[2]
 
-    -- nvim_buf_get_text is 0-indexed for lines and columns.
-    -- get_mark returns 1-based line and 0-based col.
-    -- The end column for get_text is exclusive, but the mark is inclusive.
-    local text_lines = vim.api.nvim_buf_get_text(0, start_line - 1, start_col, end_line - 1, end_col + 1, {})
+    local text_lines = vim.api.nvim_buf_get_text(0, start_line - 1, start_col, end_line - 1, end_col_from_mark + 1, {})
     local selection = table.concat(text_lines, "\n")
 
     if #selection == 0 then
         return nil
+    end
+
+    local end_line_len = #(vim.api.nvim_buf_get_lines(0, end_line - 1, end_line, false)[1] or "")
+
+    local replacement_end_col
+    if end_col_from_mark >= end_line_len then
+        replacement_end_col = end_line_len
+    else
+        replacement_end_col = end_col_from_mark + 1
     end
 
     return {
@@ -73,9 +78,10 @@ local function get_visual_selection()
         start_line = start_line - 1,
         start_col = start_col,
         end_line = end_line - 1,
-        end_col = end_col + 1
+        end_col = replacement_end_col
     }
 end
+
 
 -- Function to construct the Gemini API request payload
 local function construct_payload(text_to_improve, prompt_instruction)
@@ -243,7 +249,7 @@ local function improve_buffer()
         vim.api.nvim_buf_set_option(0, 'buftype', 'nofile') -- Don't associate with a file
         vim.api.nvim_buf_set_option(0, 'swapfile', false)
         vim.api.nvim_buf_set_option(0, 'modifiable', true) -- Make sure it's modifiable for writing
-        vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(improved_text, '\n'))
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(improved_text, "\n"))
         vim.api.nvim_buf_set_option(0, 'modifiable', false) -- Make it read-only
         vim.api.nvim_buf_set_option(0, 'readonly', true)
         vim.api.nvim_buf_set_option(0, 'filetype', 'markdown') -- Suggest a filetype for highlighting
@@ -261,8 +267,7 @@ local function improve_selection()
     end
 
     call_gemini(selection_info.text, function(improved_text)
-        local new_text_lines = vim.split(improved_text, '
-')
+        local new_text_lines = vim.split(improved_text, "\n")
         vim.api.nvim_buf_set_text(0,
             selection_info.start_line,
             selection_info.start_col,
@@ -277,28 +282,29 @@ end
 -- Expose configuration function
 function plugin.setup(opts)
     plugin.config = vim.tbl_deep_extend("force", plugin.config, opts or {})
+    plugin.init()
 end
 
 -- Define Neovim Commands and Keymaps
 function plugin.init()
     -- User Command: :GeminiImprove
-    vim.api.nvim_create_user_command('GeminiImprove', function()
+    vim.api.nvim_create_user_command("GeminiImprove", function()
         improve_buffer()
     end, {
         desc = "Improve current buffer text using Google Gemini API"
     })
 
     -- User Command: :GeminiImproveSelection
-    vim.api.nvim_create_user_command('GeminiImproveSelection', function()
+    vim.api.nvim_create_user_command("GeminiImproveSelection", function()
         improve_selection()
     end, {
         desc = "Improve selected text using Google Gemini API"
     })
 
     -- User Command: :GeminiSetPrompt
-    vim.api.nvim_create_user_command('GeminiSetPrompt', function(args)
-        local new_prompt = table.concat(args.fargs, ' ')
-        if new_prompt ~= '' then
+    vim.api.nvim_create_user_command("GeminiSetPrompt", function(args)
+        local new_prompt = table.concat(args.fargs, " ")
+        if new_prompt ~= "" then
             plugin.config.default_prompt = new_prompt
             vim.notify("Default Gemini prompt set to: " .. new_prompt, vim.log.levels.INFO)
         else
@@ -310,9 +316,9 @@ function plugin.init()
     })
 
     -- User Command: :GeminiSetBufferPrompt
-    vim.api.nvim_create_user_command('GeminiSetBufferPrompt', function(args)
-        local new_prompt = table.concat(args.fargs, ' ')
-        if new_prompt ~= '' then
+    vim.api.nvim_create_user_command("GeminiSetBufferPrompt", function(args)
+        local new_prompt = table.concat(args.fargs, " ")
+        if new_prompt ~= "" then
             vim.b.gemini_prompt = new_prompt
             vim.notify("Buffer-local Gemini prompt set to: " .. new_prompt, vim.log.levels.INFO)
         else
@@ -324,7 +330,7 @@ function plugin.init()
     })
 
     -- User Command: :GeminiDisplayPrompt
-    vim.api.nvim_create_user_command('GeminiDisplayPrompt', function()
+    vim.api.nvim_create_user_command("GeminiDisplayPrompt", function()
         local current_prompt
         if vim.b.gemini_prompt then
             current_prompt = vim.b.gemini_prompt
@@ -338,28 +344,25 @@ function plugin.init()
     })
 
     -- Keymap: <leader>gi (Gemini Improve)
-    vim.keymap.set('n', '<leader>gi', ':GeminiImprove<CR>', {
+    vim.keymap.set("n", "<leader>gi", ":GeminiImprove<CR>", {
         noremap = true,
         silent = true,
         desc = "Improve text with Gemini"
     })
 
     -- Keymap: <leader>gs (Gemini Improve Selection)
-    vim.keymap.set('v', '<leader>gs', ':<C-U>GeminiImproveSelection<CR>', {
+    vim.keymap.set("v", "<leader>gs", ":<C-U>GeminiImproveSelection<CR>", {
         noremap = true,
         silent = true,
         desc = "Improve selected text with Gemini"
     })
 
     -- Keymap: <leader>gd (Gemini Display Prompt)
-    vim.keymap.set('n', '<leader>gd', ':GeminiDisplayPrompt<CR>', {
+    vim.keymap.set("n", "<leader>gd", ":GeminiDisplayPrompt<CR>", {
         noremap = true,
         silent = true,
         desc = "Show current prompt"
     })
 end
-
--- Initialize the plugin on load
-plugin.init()
 
 return plugin
